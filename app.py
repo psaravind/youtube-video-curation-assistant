@@ -115,7 +115,7 @@ with st.sidebar:
 st.title("YouTube Video Curation Assistant")
 
 # Search input and filters
-col1, col2 = st.columns([2, 1])
+col1, col2, col3 = st.columns([2, 1, 1])
 with col1:
     search_term = st.text_input("Enter search term", key="search_input")
 with col2:
@@ -123,6 +123,8 @@ with col2:
         "Date Range",
         ["Last 7 days", "Last 2 weeks", "Last 1 month", "No date filter"]
     )
+with col3:
+    english_only = st.checkbox("English Only", value=True, help="Filter for English language videos only")
 
 # Search button
 if st.button("Search"):
@@ -133,11 +135,17 @@ if st.button("Search"):
             
             # Perform YouTube search
             youtube_client = get_youtube_client()
-            results = youtube_client.search_videos(search_term, date_filter)
+            results = youtube_client.search_videos(search_term, date_filter, english_only)
             
             # Convert results to DataFrame
             st.session_state.search_results = pd.DataFrame(results)
             st.session_state.selected_videos = set(range(len(results)))
+            
+            # Display filtering statistics if available
+            if results and 'filtering_stats' in results[0]:
+                stats = results[0]['filtering_stats']
+                if stats['filtered_out'] > 0:
+                    st.info(f"Found {stats['total_videos']} videos, filtered out {stats['filtered_out']} non-English videos.")
             
         except Exception as e:
             st.error(f"Error performing search: {str(e)}")
