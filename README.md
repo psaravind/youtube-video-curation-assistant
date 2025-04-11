@@ -64,7 +64,6 @@ project-root/
 ├── app.py                    # Main Streamlit app
 ├── youtube_client.py         # YouTube API search logic
 ├── sheets_client.py          # Google Sheets writer
-├── data/                     # Local data storage
 ├── creds/                    # Google API credentials
 │   └── youtube-video-curation-456516-76975cfec573.json
 └── requirements.txt          # Python dependencies
