@@ -1,124 +1,110 @@
 # YouTube Video Curation Assistant
 
-A Streamlit application that helps you search for YouTube videos, preview their metadata, and save selected entries to Google Sheets.
+A Streamlit application that helps you search, analyze, and curate YouTube videos using AI-powered insights.
 
 ## Features
 
-- Search YouTube videos with customizable date filters
-- Preview video metadata including title, URL, upload date, channel name, view count, like count, and duration
-- Select/deselect videos for saving
-- Save selected videos to Google Sheets
-- Track search history in Google Sheets with timestamps and search counts
-- Re-run past searches with one click
-- Display up to 50 search results at once
+- **YouTube Search**: Search for videos using keywords and filters
+- **AI-Powered Analysis**: Get AI-generated insights about each video
+- **Video Duration**: View video length in the metadata preview
+- **Google Sheets Integration**: 
+  - Save selected videos to Google Sheets
+  - Track search history with timestamps
+- **Search History**: View and manage your past searches (stored in Google Sheets)
+- **Video Preview**: Watch videos directly in the app
+- **Metadata Display**: View detailed video information including duration
 
 ## Setup
 
-1. Clone the repository
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/youtube-video-curation-assistant.git
+cd youtube-video-curation-assistant
+```
 
-3. Set up environment variables:
-   Create a `.env` file in the project root with:
-   ```
-   YOUTUBE_API_KEY=your_youtube_api_key
-   GOOGLE_SHEETS_ID=your_spreadsheet_id
-   GOOGLE_SHEETS_CREDENTIALS_PATH=creds/youtube-video-curation-456516-76975cfec573.json
-   ```
+2. Create and activate a virtual environment:
+```bash
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+```
 
-4. Set up Google Sheets API:
-   - Create a Google Cloud Project
+3. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+4. Set up environment variables:
+   - Create a `.env` file in the project root
+   - Add your API keys and configuration:
+```
+OPENAI_API_KEY=your_openai_api_key
+YOUTUBE_API_KEY=your_youtube_api_key
+GOOGLE_SHEETS_ID=your_google_sheets_id
+GOOGLE_SHEETS_CREDENTIALS_PATH=creds/youtube-video-curation-456516-76975cfec573.json
+```
+
+5. Set up Google Sheets:
+   - Create a Google Cloud project
    - Enable YouTube Data API v3 and Google Sheets API
    - Create a service account and download credentials
    - Place the credentials file in the `creds` directory
    - Share your Google Sheet with the service account email
 
-## Usage
-
-1. Run the Streamlit app:
-   ```bash
-   streamlit run app.py
-   ```
-
-2. Enter a search term and select a date range
-3. Click "Search" to find videos
-4. Review the results and deselect any unwanted videos
-5. Click "Save Selected to Google Sheets" to save selected videos
-
 ## Google Sheets Integration
 
-The app creates and manages two tabs in your Google Sheet:
-
-1. **YouTube Videos**: Stores video metadata for saved videos
-   - Columns: Title, Video URL, Upload Date, Channel Name, View Count, Like Count, Description, Search Term, Date Range, Added Date
-
-2. **Search_History**: Tracks your search history
-   - Columns: Search Term, Timestamp, Count (number of times searched)
+The app uses two tabs in your Google Sheet:
+1. **YouTube Videos**: Stores saved video metadata
+2. **Search_History**: Tracks search terms with timestamps and counts
 
 ## Project Structure
 
 ```
-project-root/
-├── app.py                    # Main Streamlit app
-├── youtube_client.py         # YouTube API search logic
-├── sheets_client.py          # Google Sheets writer
-├── creds/                    # Google API credentials
-│   └── youtube-video-curation-456516-76975cfec573.json
-└── requirements.txt          # Python dependencies
+youtube-video-curation-assistant/
+├── app.py                 # Main Streamlit application
+├── youtube_client.py      # YouTube API integration
+├── sheets_client.py       # Google Sheets integration
+├── requirements.txt       # Python dependencies
+├── .env                   # Environment variables (not in repo)
+└── creds/                 # Credentials directory (not in repo)
+    └── youtube-video-curation-456516-76975cfec573.json
+```
+
+## Running the App
+
+```bash
+streamlit run app.py
 ```
 
 ## Requirements
 
-- Python 3.8+
-- Streamlit 1.32.0
-- Google API Python Client 2.118.0
-- gspread 5.12.4
-- pandas 2.2.1
-- python-dotenv 1.0.1 
+- Python 3.10+
+- OpenAI API key
+- YouTube Data API v3 key
+- Google Cloud project with:
+  - YouTube Data API v3 enabled
+  - Google Sheets API enabled
+  - Service account credentials
 
-# Environment variables
-.env
+## Dependencies
 
-# Python cache files
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-*.egg-info/
-.installed.cfg
-*.egg
+- streamlit==1.32.0
+- openai==1.12.0
+- google-api-python-client==2.118.0
+- google-auth-httplib2==0.2.0
+- google-auth-oauthlib==1.2.0
+- gspread==6.0.2
+- python-dotenv==1.0.1
+- pandas==2.2.1
+- numpy==1.26.4
 
-# Virtual environment
-venv/
-ENV/
-.venv/
+## Contributing
 
-# IDE files
-.idea/
-.vscode/
-*.swp
-*.swo
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
 
-# OS specific files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db 
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details. 
