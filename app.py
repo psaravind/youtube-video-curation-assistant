@@ -93,7 +93,20 @@ with st.sidebar:
     if search_history:
         for term in search_history:
             if st.button(f"🔍 {term}", key=f"hist_{term}"):
-                st.session_state.current_search = term
+                # Set the search term in the text input
+                st.session_state.search_input = term
+                # Trigger the search
+                youtube_client = get_youtube_client()
+                results = youtube_client.search_videos(term, "No date filter")
+                
+                # Convert results to DataFrame
+                st.session_state.search_results = pd.DataFrame(results)
+                st.session_state.selected_videos = set(range(len(results)))
+                
+                # Update search history
+                update_search_history(term)
+                
+                # Rerun the app to show results
                 st.rerun()
     else:
         st.info("No search history yet")
