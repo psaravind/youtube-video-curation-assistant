@@ -119,15 +119,12 @@ class YouTubeClient:
                 filtered_count += 1
                 continue
             
-            # Format duration
-            duration = video['contentDetails']['duration']
-            hours = int(duration[2:].split('H')[0]) if 'H' in duration else 0
-            minutes = int(duration.split('H')[1].split('M')[0]) if 'H' in duration and 'M' in duration else \
-                     int(duration[2:].split('M')[0]) if 'M' in duration else 0
-            seconds = int(duration.split('M')[1].split('S')[0]) if 'M' in duration and 'S' in duration else \
-                     int(duration[2:].split('S')[0]) if 'S' in duration else 0
-            
-            formatted_duration = f"{hours:02d}:{minutes:02d}:{seconds:02d}" if hours > 0 else f"{minutes:02d}:{seconds:02d}"
+            # Format duration using the helper method
+            try:
+                formatted_duration = self._format_duration(video['contentDetails']['duration'])
+            except Exception as e:
+                st.write(f"Error formatting duration: {str(e)}")
+                formatted_duration = "N/A"
             
             # Create video metadata dictionary
             video_data = {

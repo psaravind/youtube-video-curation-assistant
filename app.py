@@ -74,42 +74,97 @@ def update_search_history(search_term):
         st.error(f"Error updating search history: {str(e)}")
 
 # Function to get search history from Google Sheets
+@st.cache_data(ttl=10)  # Cache for 10 seconds to allow for more frequent updates
 def get_search_history():
     """Get search history from Google Sheets"""
     try:
         sheets_client = get_sheets_client()
-        return sheets_client.get_search_history()
+        history = sheets_client.get_search_history()
+        if history:
+            # Convert list of dictionaries to DataFrame
+            df = pd.DataFrame(history)
+            
+            # Rename columns to match expected format
+            df = df.rename(columns={
+                'Search Term': 'search_term',
+                'Timestamp': 'timestamp',
+                'Count': 'count'
+            })
+            
+            # Convert timestamp string to datetime if it exists
+            if 'timestamp' in df.columns and df['timestamp'].notna().any():
+                df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+            else:
+                # If no timestamp, use current time
+                df['timestamp'] = pd.Timestamp.now()
+            
+            # Ensure count is numeric
+            if 'count' in df.columns:
+                df['count'] = pd.to_numeric(df['count'], errors='coerce').fillna(1)
+            
+            return df
+        return pd.DataFrame(columns=['search_term', 'count', 'timestamp'])
     except Exception as e:
         st.error(f"Error getting search history: {str(e)}")
-        return []
+        return pd.DataFrame(columns=['search_term', 'count', 'timestamp'])
 
 # Sidebar with search history
 with st.sidebar:
-    st.header("Search History")
+    st.header("Previous Searches")
     
     # Get search history from Google Sheets
     search_history = get_search_history()
     
-    if search_history:
-        for term in search_history:
-            if st.button(f"🔍 {term}", key=f"hist_{term}"):
-                # Set the search term in the text input
-                st.session_state.search_input = term
-                # Trigger the search
-                youtube_client = get_youtube_client()
-                results = youtube_client.search_videos(term, "No date filter")
+    # Display search history with clickable links
+    if not search_history.empty:
+        for idx, row in search_history.iterrows():
+            search_term = row['search_term']
+            if pd.isna(search_term):  # Skip if search_term is None or NaN
+                continue
                 
-                # Convert results to DataFrame
-                st.session_state.search_results = pd.DataFrame(results)
-                st.session_state.selected_videos = set(range(len(results)))
+            count = row.get('count', 1)
+            if pd.isna(count):  # Handle None count
+                count = 1
                 
-                # Update search history
-                update_search_history(term)
-                
-                # Rerun the app to show results
-                st.rerun()
+            # Create a unique key using both index and search term
+            button_key = f"history_{idx}_{search_term}"
+            
+            if st.button(f"🔍 {search_term} ({count} searches)", key=button_key):
+                try:
+                    # Update search history in Google Sheets
+                    update_search_history(search_term)
+                    
+                    # Get the current date filter and english_only settings from the UI
+                    date_filter = st.session_state.get('date_filter', "No date filter")
+                    english_only = st.session_state.get('english_only', True)
+                    
+                    # Store the search term in session state
+                    st.session_state.search_input = search_term
+                    
+                    # Perform YouTube search with current filter settings
+                    youtube_client = get_youtube_client()
+                    results = youtube_client.search_videos(search_term, date_filter, english_only)
+                    
+                    # Convert results to DataFrame
+                    st.session_state.search_results = pd.DataFrame(results)
+                    st.session_state.selected_videos = set(range(len(results)))
+                    
+                    # Force refresh of search history
+                    st.session_state.search_history = None  # Clear cached history
+                    
+                    # Display filtering statistics if available
+                    if results and 'filtering_stats' in results[0]:
+                        stats = results[0]['filtering_stats']
+                        if stats['filtered_out'] > 0:
+                            st.info(f"Found {stats['total_videos']} videos, filtered out {stats['filtered_out']} non-English videos.")
+                    
+                    # Rerun to refresh the page
+                    st.rerun()
+                    
+                except Exception as e:
+                    st.error(f"Error performing search: {str(e)}")
     else:
-        st.info("No search history yet")
+        st.info("No previous searches yet. Start searching to build your history!")
 
 # Main content
 st.title("YouTube Video Curation Assistant")
@@ -121,10 +176,11 @@ with col1:
 with col2:
     date_filter = st.selectbox(
         "Date Range",
-        ["Last 7 days", "Last 2 weeks", "Last 1 month", "No date filter"]
+        ["Last 7 days", "Last 2 weeks", "Last 1 month", "No date filter"],
+        key="date_filter"  # Add key to store in session state
     )
 with col3:
-    english_only = st.checkbox("English Only", value=True, help="Filter for English language videos only")
+    english_only = st.checkbox("English Only", value=True, help="Filter for English language videos only", key="english_only")  # Add key to store in session state
 
 # Search button
 if st.button("Search"):
@@ -141,11 +197,17 @@ if st.button("Search"):
             st.session_state.search_results = pd.DataFrame(results)
             st.session_state.selected_videos = set(range(len(results)))
             
+            # Force refresh of search history
+            st.session_state.search_history = None  # Clear cached history
+            
             # Display filtering statistics if available
             if results and 'filtering_stats' in results[0]:
                 stats = results[0]['filtering_stats']
                 if stats['filtered_out'] > 0:
                     st.info(f"Found {stats['total_videos']} videos, filtered out {stats['filtered_out']} non-English videos.")
+            
+            # Rerun to refresh the page
+            st.rerun()
             
         except Exception as e:
             st.error(f"Error performing search: {str(e)}")
@@ -154,10 +216,18 @@ if st.button("Search"):
 
 # Display results if available
 if st.session_state.search_results is not None:
-    st.header("Search Results")
+    # Get the current search term and number of rows
+    current_search_term = st.session_state.get('search_input', '')
+    num_rows = len(st.session_state.search_results)
+    
+    # Display header with search term and result count
+    st.header(f"Search Results for '{current_search_term}' ({num_rows} videos found)")
     
     # Create a copy of the results for display
     display_df = st.session_state.search_results.copy()
+    
+    # Filter out any rows where all values are empty or NaN
+    display_df = display_df.dropna(how='all')
     
     # Add selection column
     display_df['selected'] = [i in st.session_state.selected_videos for i in range(len(display_df))]
@@ -165,11 +235,23 @@ if st.session_state.search_results is not None:
     # Create a clickable link column
     display_df['watch'] = display_df['video_url']
     
-    # Ensure all required columns exist
-    required_columns = ['title', 'watch', 'duration', 'upload_date', 'channel_name', 'view_count', 'like_count', 'description', 'search_term', 'date_range']
-    for col in required_columns:
+    # Ensure all required columns exist with default values
+    required_columns = {
+        'title': '',
+        'watch': '',
+        'duration': 'N/A',  # Default value for duration
+        'upload_date': '',
+        'channel_name': '',
+        'view_count': 0,
+        'like_count': 0,
+        'description': '',
+        'search_term': search_term if 'search_term' in locals() else '',
+        'date_range': date_filter if 'date_filter' in locals() else ''
+    }
+    
+    for col, default_value in required_columns.items():
         if col not in display_df.columns:
-            display_df[col] = ''
+            display_df[col] = default_value
     
     # Convert numeric columns to appropriate types
     try:
@@ -182,6 +264,10 @@ if st.session_state.search_results is not None:
     
     # Display interactive dataframe
     try:
+        # Calculate height based on number of rows (50px per row + 100px for header)
+        num_rows = len(display_df)
+        height = min(max(num_rows * 50 + 100, 200), 2000)  # Minimum 200px, maximum 2000px
+        
         edited_df = st.data_editor(
             display_df,
             column_config={
@@ -253,7 +339,8 @@ if st.session_state.search_results is not None:
                 "search_term",
                 "date_range"
             ],
-            height=2000  # Set a fixed height to show all rows
+            height=height,  # Dynamic height based on number of rows
+            num_rows="fixed"  # Prevent showing empty rows
         )
         
         # Update selected videos

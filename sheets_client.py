@@ -135,7 +135,7 @@ class SheetsClient:
         Get search history from Google Sheets
         
         Returns:
-            list: List of search terms sorted by timestamp (newest first)
+            list: List of dictionaries containing search history data
         """
         try:
             # Get all values from the search history worksheet
@@ -144,10 +144,8 @@ class SheetsClient:
             # Sort by timestamp (newest first)
             sorted_values = sorted(values, key=lambda x: x['Timestamp'], reverse=True)
             
-            # Extract search terms
-            search_terms = [item['Search Term'] for item in sorted_values]
-            
-            return search_terms
+            # Return the full search history data
+            return sorted_values
         except Exception as e:
             error_msg = f"Error getting search history: {str(e)}\n"
             error_msg += f"Traceback: {traceback.format_exc()}"
