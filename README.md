@@ -12,6 +12,7 @@ A Streamlit application that helps you search, analyze, and curate YouTube video
   - Save selected videos to Google Sheets
   - Track search history with timestamps and search counts
 - **Previous Searches**: View and reuse your past searches (stored in Google Sheets)
+- **Suggested Topics**: Discover related topics based on video tags from search results
 - **Video Preview**: Watch videos directly in the app
 - **Metadata Display**: View detailed video information including duration, views, and likes
 - **Dynamic Results Display**: Results table adjusts height based on the number of videos found
@@ -96,6 +97,7 @@ streamlit run app.py
 - pandas==2.2.1
 - numpy==1.26.4
 - langdetect==1.0.9
+- isodate==0.6.1
 
 ## Usage
 
@@ -110,11 +112,16 @@ streamlit run app.py
    - Click on the "Video" link to watch the video
    - Select videos you want to save using the checkboxes
 
-3. **Save to Google Sheets**:
+3. **Discover Related Topics**:
+   - After a search, suggested topics appear based on video tags
+   - Click on any suggested topic to perform a new search with that term
+   - Topics are sorted alphabetically for easy browsing
+
+4. **Save to Google Sheets**:
    - Select videos using the checkboxes
    - Click "Save Selected to Google Sheets" to save them
 
-4. **Previous Searches**:
+5. **Previous Searches**:
    - View your search history in the sidebar
    - Click on any previous search to quickly perform that search again
 

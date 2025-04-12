@@ -5,6 +5,8 @@ from dotenv import load_dotenv
 import streamlit as st
 import re
 from langdetect import detect, LangDetectException
+from collections import Counter
+import isodate
 
 # Load environment variables
 load_dotenv()
@@ -58,96 +60,136 @@ class YouTubeClient:
         except LangDetectException:
             return False
 
+    def _get_video_tags(self, video_ids):
+        """Get tags for a list of videos."""
+        try:
+            # Split video IDs into chunks of 50 (API limit)
+            chunk_size = 50
+            all_tags = []
+            
+            for i in range(0, len(video_ids), chunk_size):
+                chunk = video_ids[i:i + chunk_size]
+                response = self.youtube.videos().list(
+                    part='snippet',
+                    id=','.join(chunk)
+                ).execute()
+                
+                # Extract tags from each video
+                for item in response.get('items', []):
+                    tags = item['snippet'].get('tags', [])
+                    all_tags.extend(tags)
+            
+            # Clean and deduplicate tags
+            cleaned_tags = [tag.lower().strip() for tag in all_tags if tag.strip()]
+            tag_counts = Counter(cleaned_tags)
+            
+            # Get top 50 most common tags and sort them alphabetically
+            top_tags = [tag for tag, count in tag_counts.most_common(50)]
+            return sorted(top_tags)
+            
+        except Exception as e:
+            print(f"Error fetching video tags: {str(e)}")
+            return []
+
     def search_videos(self, query, date_filter="No date filter", english_only=True):
-        """
-        Search for YouTube videos with optional date filtering and language filtering
-        Args:
-            query (str): Search query
-            date_filter (str): Date filter option
-            english_only (bool): Whether to filter for English videos only
-        Returns:
-            list: List of video metadata dictionaries
-        """
-        # Calculate date range
-        if date_filter == "Last 7 days":
-            published_after = (datetime.now() - timedelta(days=7)).isoformat() + 'Z'
-        elif date_filter == "Last 2 weeks":
-            published_after = (datetime.now() - timedelta(days=14)).isoformat() + 'Z'
-        elif date_filter == "Last 1 month":
-            published_after = (datetime.now() - timedelta(days=30)).isoformat() + 'Z'
-        else:
-            published_after = None
-
-        # Prepare search parameters
-        search_params = {
-            'q': query,
-            'part': 'snippet',
-            'maxResults': 50,
-            'type': 'video',
-            'relevanceLanguage': 'en',
-            'regionCode': 'US'
-        }
-        
-        if published_after:
-            search_params['publishedAfter'] = published_after
-
-        # Execute search
-        search_response = self.youtube.search().list(**search_params).execute()
-        
-        # Get video IDs for detailed information
-        video_ids = [item['id']['videoId'] for item in search_response['items']]
-        
-        # Get detailed video information
-        videos_response = self.youtube.videos().list(
-            part='snippet,contentDetails,statistics',
-            id=','.join(video_ids)
-        ).execute()
-
-        # Process and filter results
-        results = []
-        filtered_count = 0
-        
-        for video in videos_response['items']:
-            snippet = video['snippet']
-            statistics = video.get('statistics', {})
+        """Search for YouTube videos with the given query and filters."""
+        try:
+            # Calculate date range
+            date_range = self._get_date_filter(date_filter)
             
-            # Combine title and description for language detection
-            text_to_check = f"{snippet['title']} {snippet.get('description', '')}"
-            
-            # Skip non-English videos if english_only is True
-            if english_only and not self.is_english(text_to_check):
-                filtered_count += 1
-                continue
-            
-            # Format duration using the helper method
-            try:
-                formatted_duration = self._format_duration(video['contentDetails']['duration'])
-            except Exception as e:
-                st.write(f"Error formatting duration: {str(e)}")
-                formatted_duration = "N/A"
-            
-            # Create video metadata dictionary
-            video_data = {
-                'title': snippet['title'],
-                'video_url': f"https://www.youtube.com/watch?v={video['id']}",
-                'duration': formatted_duration,
-                'upload_date': snippet['publishedAt'].split('T')[0],
-                'channel_name': snippet['channelTitle'],
-                'view_count': statistics.get('viewCount', '0'),
-                'like_count': statistics.get('likeCount', '0'),
-                'description': snippet.get('description', ''),
-                'search_term': query,
-                'date_range': date_filter
+            # Prepare search parameters
+            search_params = {
+                'q': query,
+                'type': 'video',
+                'part': 'id,snippet',
+                'maxResults': 50,
+                'videoDuration': 'any',
+                'relevanceLanguage': 'en' if english_only else None
             }
             
-            results.append(video_data)
-        
-        # Add filtering statistics to the first result
-        if results:
-            results[0]['filtering_stats'] = {
-                'total_videos': len(video_ids),
-                'filtered_out': filtered_count,
-                'english_only': english_only
-            }
-        
-        return results 
+            # Add date filter if specified
+            if date_range:
+                search_params['publishedAfter'] = date_range.isoformat() + 'Z'
+            
+            # Perform search
+            search_response = self.youtube.search().list(**search_params).execute()
+            
+            # Extract video IDs for detailed info
+            video_ids = [item['id']['videoId'] for item in search_response.get('items', [])]
+            
+            # Get video tags
+            video_tags = self._get_video_tags(video_ids)
+            
+            # Get detailed video information
+            videos_response = self.youtube.videos().list(
+                part='snippet,contentDetails,statistics',
+                id=','.join(video_ids)
+            ).execute()
+            
+            # Process results
+            results = []
+            total_videos = len(video_ids)
+            filtered_out = 0
+            
+            for item in videos_response.get('items', []):
+                try:
+                    # Extract video details
+                    video_id = item['id']
+                    snippet = item['snippet']
+                    statistics = item.get('statistics', {})
+                    content_details = item.get('contentDetails', {})
+                    
+                    # Check language if english_only is True
+                    if english_only:
+                        try:
+                            video_lang = detect(snippet.get('description', ''))
+                            if video_lang != 'en':
+                                filtered_out += 1
+                                continue
+                        except:
+                            # If language detection fails, include the video
+                            pass
+                    
+                    # Format duration
+                    duration = content_details.get('duration', 'PT0S')
+                    try:
+                        duration_obj = isodate.parse_duration(duration)
+                        hours = duration_obj.seconds // 3600
+                        minutes = (duration_obj.seconds % 3600) // 60
+                        seconds = duration_obj.seconds % 60
+                        if hours > 0:
+                            duration_str = f"{hours}:{minutes:02d}:{seconds:02d}"
+                        else:
+                            duration_str = f"{minutes}:{seconds:02d}"
+                    except:
+                        duration_str = "N/A"
+                    
+                    # Create video object
+                    video = {
+                        'video_id': video_id,
+                        'title': snippet.get('title', ''),
+                        'description': snippet.get('description', ''),
+                        'channel_name': snippet.get('channelTitle', ''),
+                        'upload_date': snippet.get('publishedAt', ''),
+                        'view_count': int(statistics.get('viewCount', 0)),
+                        'like_count': int(statistics.get('likeCount', 0)),
+                        'duration': duration_str,
+                        'video_url': f"https://www.youtube.com/watch?v={video_id}",
+                        'search_term': query,
+                        'date_range': date_filter,
+                        'filtering_stats': {
+                            'total_videos': total_videos,
+                            'filtered_out': filtered_out
+                        }
+                    }
+                    results.append(video)
+                    
+                except Exception as e:
+                    print(f"Error processing video {video_id}: {str(e)}")
+                    continue
+            
+            return results, video_tags
+            
+        except Exception as e:
+            print(f"Error performing search: {str(e)}")
+            return [], [] 

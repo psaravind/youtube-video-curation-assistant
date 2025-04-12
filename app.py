@@ -63,6 +63,10 @@ if 'search_results' not in st.session_state:
     st.session_state.search_results = None
 if 'selected_videos' not in st.session_state:
     st.session_state.selected_videos = set()
+if 'video_tags' not in st.session_state:
+    st.session_state.video_tags = []
+if 'tag_to_search' not in st.session_state:
+    st.session_state.tag_to_search = None
 
 # Function to update search history in Google Sheets
 def update_search_history(search_term):
@@ -143,11 +147,14 @@ with st.sidebar:
                     
                     # Perform YouTube search with current filter settings
                     youtube_client = get_youtube_client()
-                    results = youtube_client.search_videos(search_term, date_filter, english_only)
+                    results, video_tags = youtube_client.search_videos(search_term, date_filter, english_only)
                     
                     # Convert results to DataFrame
                     st.session_state.search_results = pd.DataFrame(results)
                     st.session_state.selected_videos = set(range(len(results)))
+                    
+                    # Store video tags in session state
+                    st.session_state.video_tags = video_tags
                     
                     # Force refresh of search history
                     st.session_state.search_history = None  # Clear cached history
@@ -157,6 +164,16 @@ with st.sidebar:
                         stats = results[0]['filtering_stats']
                         if stats['filtered_out'] > 0:
                             st.info(f"Found {stats['total_videos']} videos, filtered out {stats['filtered_out']} non-English videos.")
+                    
+                    # Display suggested topics if available
+                    if video_tags:
+                        st.sidebar.markdown("### Suggested Topics")
+                        cols = st.sidebar.columns(2)
+                        for i, tag in enumerate(video_tags):
+                            col_idx = i % 2
+                            if cols[col_idx].button(f"🔍 {tag}", key=f"tag_{tag}"):
+                                st.session_state.tag_to_search = tag
+                                st.rerun()
                     
                     # Rerun to refresh the page
                     st.rerun()
@@ -169,33 +186,47 @@ with st.sidebar:
 # Main content
 st.title("YouTube Video Curation Assistant")
 
-# Search input and filters
-col1, col2, col3 = st.columns([2, 1, 1])
-with col1:
-    search_term = st.text_input("Enter search term", key="search_input")
-with col2:
-    date_filter = st.selectbox(
-        "Date Range",
-        ["Last 7 days", "Last 2 weeks", "Last 1 month", "No date filter"],
-        key="date_filter"  # Add key to store in session state
-    )
-with col3:
-    english_only = st.checkbox("English Only", value=True, help="Filter for English language videos only", key="english_only")  # Add key to store in session state
+# Check if we need to perform a search from a tag click
+if st.session_state.tag_to_search:
+    search_term = st.session_state.tag_to_search
+    # Update search history when a tag is clicked
+    update_search_history(search_term)
+    st.session_state.tag_to_search = None  # Reset after using
+else:
+    # Search input and filters
+    col1, col2, col3 = st.columns([2, 1, 1])
+    with col1:
+        search_term = st.text_input("Enter search term", key="search_input")
+    with col2:
+        date_filter = st.selectbox(
+            "Date Range",
+            ["Last 7 days", "Last 2 weeks", "Last 1 month", "No date filter"],
+            key="date_filter"  # Add key to store in session state
+        )
+    with col3:
+        english_only = st.checkbox("English Only", value=True, help="Filter for English language videos only", key="english_only")  # Add key to store in session state
 
 # Search button
-if st.button("Search"):
+if st.button("Search", key="search_button"):
     if search_term:
         try:
             # Update search history in Google Sheets
             update_search_history(search_term)
             
-            # Perform YouTube search
+            # Get the current date filter and english_only settings from the UI
+            date_filter = st.session_state.get('date_filter', "No date filter")
+            english_only = st.session_state.get('english_only', True)
+            
+            # Perform YouTube search with current filter settings
             youtube_client = get_youtube_client()
-            results = youtube_client.search_videos(search_term, date_filter, english_only)
+            results, video_tags = youtube_client.search_videos(search_term, date_filter, english_only)
             
             # Convert results to DataFrame
             st.session_state.search_results = pd.DataFrame(results)
             st.session_state.selected_videos = set(range(len(results)))
+            
+            # Store video tags in session state
+            st.session_state.video_tags = video_tags
             
             # Force refresh of search history
             st.session_state.search_history = None  # Clear cached history
@@ -214,10 +245,41 @@ if st.button("Search"):
     else:
         st.warning("Please enter a search term")
 
+# Display suggested topics if available
+if 'video_tags' in st.session_state and st.session_state.video_tags:
+    st.markdown("### Suggested Topics")
+    
+    # Create a container for the tags
+    tag_container = st.container()
+    
+    # Display tags in a more compact form with 5 columns
+    with tag_container:
+        # Calculate how many rows we need (5 tags per row)
+        tags = st.session_state.video_tags
+        num_rows = (len(tags) + 4) // 5  # Round up division
+        
+        for row in range(num_rows):
+            # Get the tags for this row
+            start_idx = row * 5
+            end_idx = min(start_idx + 5, len(tags))
+            row_tags = tags[start_idx:end_idx]
+            
+            # Create columns for this row
+            cols = st.columns(5)
+            
+            # Add tags to columns
+            for i, tag in enumerate(row_tags):
+                if cols[i].button(f"🔍 {tag}", key=f"tag_{tag}"):
+                    # Instead of modifying search_input directly, set a flag
+                    st.session_state.tag_to_search = tag
+                    # Force refresh of search history
+                    st.session_state.search_history = None  # Clear cached history
+                    st.rerun()
+
 # Display results if available
 if st.session_state.search_results is not None:
     # Get the current search term and number of rows
-    current_search_term = st.session_state.get('search_input', '')
+    current_search_term = search_term  # Use the current search_term variable
     num_rows = len(st.session_state.search_results)
     
     # Display header with search term and result count
