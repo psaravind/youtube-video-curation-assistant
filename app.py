@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import os
 from dotenv import load_dotenv
 from youtube_client import YouTubeClient
-from sheets_client import SheetsClient
+from search_history import SearchHistoryManager
 
 # Load environment variables
 load_dotenv()
@@ -49,14 +49,27 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Initialize clients
-@st.cache_resource
+# Initialize YouTube client
 def get_youtube_client():
+    api_key = os.getenv('YOUTUBE_API_KEY')
+    if not api_key:
+        st.error("YouTube API key not found. Please set YOUTUBE_API_KEY in your .env file.")
+        return None
     return YouTubeClient()
 
-@st.cache_resource
-def get_sheets_client():
-    return SheetsClient()
+# Initialize search history manager
+search_history_manager = SearchHistoryManager()
+
+# Function to update search history
+def update_search_history(search_term):
+    """Update the search history with a new search term."""
+    search_history_manager.add_search_term(search_term)
+
+# Function to get search history
+@st.cache_data(ttl=10)  # Cache for 10 seconds
+def get_search_history():
+    """Get the search history as a DataFrame."""
+    return search_history_manager.get_search_history()
 
 # Initialize session state
 if 'search_results' not in st.session_state:
@@ -68,127 +81,14 @@ if 'video_tags' not in st.session_state:
 if 'tag_to_search' not in st.session_state:
     st.session_state.tag_to_search = None
 
-# Function to update search history in Google Sheets
-def update_search_history(search_term):
-    """Update search history with new search term"""
-    try:
-        sheets_client = get_sheets_client()
-        sheets_client.add_search_term(search_term)
-    except Exception as e:
-        st.error(f"Error updating search history: {str(e)}")
-
-# Function to get search history from Google Sheets
-@st.cache_data(ttl=10)  # Cache for 10 seconds to allow for more frequent updates
-def get_search_history():
-    """Get search history from Google Sheets"""
-    try:
-        sheets_client = get_sheets_client()
-        history = sheets_client.get_search_history()
-        if history:
-            # Convert list of dictionaries to DataFrame
-            df = pd.DataFrame(history)
-            
-            # Rename columns to match expected format
-            df = df.rename(columns={
-                'Search Term': 'search_term',
-                'Timestamp': 'timestamp',
-                'Count': 'count'
-            })
-            
-            # Convert timestamp string to datetime if it exists
-            if 'timestamp' in df.columns and df['timestamp'].notna().any():
-                df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
-            else:
-                # If no timestamp, use current time
-                df['timestamp'] = pd.Timestamp.now()
-            
-            # Ensure count is numeric
-            if 'count' in df.columns:
-                df['count'] = pd.to_numeric(df['count'], errors='coerce').fillna(1)
-            
-            return df
-        return pd.DataFrame(columns=['search_term', 'count', 'timestamp'])
-    except Exception as e:
-        st.error(f"Error getting search history: {str(e)}")
-        return pd.DataFrame(columns=['search_term', 'count', 'timestamp'])
-
-# Sidebar with search history
-with st.sidebar:
-    st.header("Previous Searches")
-    
-    # Get search history from Google Sheets
-    search_history = get_search_history()
-    
-    # Display search history with clickable links
-    if not search_history.empty:
-        for idx, row in search_history.iterrows():
-            search_term = row['search_term']
-            if pd.isna(search_term):  # Skip if search_term is None or NaN
-                continue
-                
-            count = row.get('count', 1)
-            if pd.isna(count):  # Handle None count
-                count = 1
-                
-            # Create a unique key using both index and search term
-            button_key = f"history_{idx}_{search_term}"
-            
-            if st.button(f"🔍 {search_term} ({count} searches)", key=button_key):
-                try:
-                    # Update search history in Google Sheets
-                    update_search_history(search_term)
-                    
-                    # Get the current date filter and english_only settings from the UI
-                    date_filter = st.session_state.get('date_filter', "No date filter")
-                    english_only = st.session_state.get('english_only', True)
-                    
-                    # Store the search term in session state
-                    st.session_state.search_input = search_term
-                    
-                    # Perform YouTube search with current filter settings
-                    youtube_client = get_youtube_client()
-                    results, video_tags = youtube_client.search_videos(search_term, date_filter, english_only)
-                    
-                    # Convert results to DataFrame
-                    st.session_state.search_results = pd.DataFrame(results)
-                    st.session_state.selected_videos = set(range(len(results)))
-                    
-                    # Store video tags in session state
-                    st.session_state.video_tags = video_tags
-                    
-                    # Force refresh of search history
-                    st.session_state.search_history = None  # Clear cached history
-                    
-                    # Display filtering statistics if available
-                    if results and 'filtering_stats' in results[0]:
-                        stats = results[0]['filtering_stats']
-                        if stats['filtered_out'] > 0:
-                            st.info(f"Found {stats['total_videos']} videos, filtered out {stats['filtered_out']} non-English videos.")
-                    
-                    # Display suggested topics if available
-                    if video_tags:
-                        st.sidebar.markdown("### Suggested Topics")
-                        cols = st.sidebar.columns(2)
-                        for i, tag in enumerate(video_tags):
-                            col_idx = i % 2
-                            if cols[col_idx].button(f"🔍 {tag}", key=f"tag_{tag}"):
-                                st.session_state.tag_to_search = tag
-                                st.rerun()
-                    
-                    # Rerun to refresh the page
-                    st.rerun()
-                    
-                except Exception as e:
-                    st.error(f"Error performing search: {str(e)}")
-    else:
-        st.info("No previous searches yet. Start searching to build your history!")
-
 # Main content
 st.title("YouTube Video Curation Assistant")
 
 # Check if we need to perform a search from a tag click
 if st.session_state.tag_to_search:
     search_term = st.session_state.tag_to_search
+    # Store the current search term in session state
+    st.session_state.current_search_term = search_term
     # Update search history when a tag is clicked
     update_search_history(search_term)
     st.session_state.tag_to_search = None  # Reset after using
@@ -210,7 +110,10 @@ else:
 if st.button("Search", key="search_button"):
     if search_term:
         try:
-            # Update search history in Google Sheets
+            # Store the current search term in session state
+            st.session_state.current_search_term = search_term
+            
+            # Update search history in local file
             update_search_history(search_term)
             
             # Get the current date filter and english_only settings from the UI
@@ -279,7 +182,7 @@ if 'video_tags' in st.session_state and st.session_state.video_tags:
 # Display results if available
 if st.session_state.search_results is not None:
     # Get the current search term and number of rows
-    current_search_term = search_term  # Use the current search_term variable
+    current_search_term = st.session_state.get('current_search_term', '')  # Get from session state
     num_rows = len(st.session_state.search_results)
     
     # Display header with search term and result count
@@ -415,32 +318,58 @@ if st.session_state.search_results is not None:
         st.write("Columns in DataFrame:", display_df.columns.tolist())
         st.write("Data types:", display_df.dtypes)
 
-# Save to Google Sheets button
-if st.button("Save Selected to Google Sheets"):
-    if st.session_state.selected_videos:
-        try:
-            # Get selected videos
-            selected_results = st.session_state.search_results.iloc[list(st.session_state.selected_videos)]
+# Sidebar for previous searches
+with st.sidebar:
+    st.header("Previous Searches")
+    
+    # Get search history
+    search_history = get_search_history()
+    
+    if not search_history.empty:
+        # Display search history with clickable links
+        for _, row in search_history.iterrows():
+            search_term = row['search_term']
+            count = row['count']
+            button_key = f"history_{search_term}"
             
-            # Convert DataFrame to list of dictionaries
-            videos_to_save = selected_results.to_dict('records')
-            
-            # Save to Google Sheets
-            sheets_client = get_sheets_client()
-            num_inserted = sheets_client.insert_videos(videos_to_save)
-            
-            st.success(f"Successfully saved {num_inserted} videos to Google Sheets!")
-            
-            # Clear selection after saving
-            st.session_state.selected_videos = set()
-            
-        except Exception as e:
-            st.error("Error saving to Google Sheets:")
-            st.error(str(e))
-            st.error("Please make sure:")
-            st.error("1. The Google Sheet exists and is accessible")
-            st.error("2. The service account has been given access to the sheet")
-            st.error("3. The credentials file is correct")
-            st.error("4. The spreadsheet ID in .env is correct")
+            # Create two columns for each search term
+            cols = st.columns(2)
+            if cols[0].button(f"🔍 {search_term} ({count} searches)", key=button_key):
+                try:
+                    # Store the current search term in session state
+                    st.session_state.current_search_term = search_term
+                    
+                    # Update search history in local file
+                    update_search_history(search_term)
+                    
+                    # Get the current date filter and english_only settings from the UI
+                    date_filter = st.session_state.get('date_filter', "No date filter")
+                    english_only = st.session_state.get('english_only', True)
+                    
+                    # Perform YouTube search with current filter settings
+                    youtube_client = get_youtube_client()
+                    results, video_tags = youtube_client.search_videos(search_term, date_filter, english_only)
+                    
+                    # Convert results to DataFrame
+                    st.session_state.search_results = pd.DataFrame(results)
+                    st.session_state.selected_videos = set(range(len(results)))
+                    
+                    # Store video tags in session state
+                    st.session_state.video_tags = video_tags
+                    
+                    # Force refresh of search history
+                    st.session_state.search_history = None  # Clear cached history
+                    
+                    # Display filtering statistics if available
+                    if results and 'filtering_stats' in results[0]:
+                        stats = results[0]['filtering_stats']
+                        if stats['filtered_out'] > 0:
+                            st.info(f"Found {stats['total_videos']} videos, filtered out {stats['filtered_out']} non-English videos.")
+                    
+                    # Rerun to refresh the page
+                    st.rerun()
+                    
+                except Exception as e:
+                    st.error(f"Error performing search: {str(e)}")
     else:
-        st.warning("Please select at least one video to save") 
+        st.info("No search history yet. Start searching to build your history!") 

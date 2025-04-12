@@ -141,14 +141,21 @@ class YouTubeClient:
                     
                     # Check language if english_only is True
                     if english_only:
+                        # Check both title and description
+                        title = snippet.get('title', '')
+                        description = snippet.get('description', '')
+                        
+                        # Skip if either title or description is not in English
                         try:
-                            video_lang = detect(snippet.get('description', ''))
-                            if video_lang != 'en':
+                            title_lang = detect(title)
+                            desc_lang = detect(description)
+                            if title_lang != 'en' or desc_lang != 'en':
                                 filtered_out += 1
                                 continue
-                        except:
-                            # If language detection fails, include the video
-                            pass
+                        except LangDetectException:
+                            # If language detection fails for either, skip the video
+                            filtered_out += 1
+                            continue
                     
                     # Format duration
                     duration = content_details.get('duration', 'PT0S')
@@ -167,8 +174,8 @@ class YouTubeClient:
                     # Create video object
                     video = {
                         'video_id': video_id,
-                        'title': snippet.get('title', ''),
-                        'description': snippet.get('description', ''),
+                        'title': title,
+                        'description': description,
                         'channel_name': snippet.get('channelTitle', ''),
                         'upload_date': snippet.get('publishedAt', ''),
                         'view_count': int(statistics.get('viewCount', 0)),
