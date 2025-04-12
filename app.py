@@ -233,6 +233,14 @@ if st.session_state.search_results is not None:
         display_df['view_count'] = 0
         display_df['like_count'] = 0
     
+    # Ensure all columns are string type to avoid serialization issues
+    for col in display_df.columns:
+        if col not in ['view_count', 'like_count']:
+            display_df[col] = display_df[col].astype(str)
+    
+    # Add a selection column for the data editor
+    display_df['selected'] = False
+    
     # Display interactive dataframe
     try:
         # Calculate height based on number of rows (50px per row + 100px for header)
@@ -242,6 +250,11 @@ if st.session_state.search_results is not None:
         edited_df = st.data_editor(
             display_df,
             column_config={
+                "selected": st.column_config.CheckboxColumn(
+                    "Select",
+                    help="Select videos to save",
+                    width="small"
+                ),
                 "title_with_desc": st.column_config.Column(
                     "Title & Description",
                     help="Video title and description",
@@ -280,6 +293,7 @@ if st.session_state.search_results is not None:
             use_container_width=True,
             disabled=["title_with_desc", "watch", "upload_date", "channel_name", "view_count", "like_count", "duration"],
             column_order=[
+                "selected",
                 "title_with_desc",
                 "watch",
                 "duration",

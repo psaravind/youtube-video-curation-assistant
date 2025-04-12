@@ -1,7 +1,10 @@
 # Credentials
 creds/*.json
 
-# Python cache files
+# Environment variables
+.env
+
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -23,29 +26,21 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual environments
-.venv/
+# Virtual Environment
+.venv
 venv/
 ENV/
-env/
 
-# Environment variables
-.env
-
-# IDE files
+# IDE
 .idea/
 .vscode/
 *.swp
 *.swo
 
-# OS specific files
+# OS
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
 
 # Project specific
+data/search_history.csv
 *.log
