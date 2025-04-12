@@ -263,7 +263,8 @@ if st.session_state.search_results is not None:
                 "watch": st.column_config.LinkColumn(
                     "Video",
                     help="Click to watch",
-                    width="small"
+                    width="small",
+                    display_text="🎬"  # Use a video camera emoji as the icon
                 ),
                 "duration": st.column_config.Column(
                     "Duration",
