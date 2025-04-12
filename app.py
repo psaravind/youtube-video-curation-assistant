@@ -74,8 +74,6 @@ def get_search_history():
 # Initialize session state
 if 'search_results' not in st.session_state:
     st.session_state.search_results = None
-if 'selected_videos' not in st.session_state:
-    st.session_state.selected_videos = set()
 if 'video_tags' not in st.session_state:
     st.session_state.video_tags = []
 if 'tag_to_search' not in st.session_state:
@@ -126,7 +124,6 @@ if st.button("Search", key="search_button"):
             
             # Convert results to DataFrame
             st.session_state.search_results = pd.DataFrame(results)
-            st.session_state.selected_videos = set(range(len(results)))
             
             # Store video tags in session state
             st.session_state.video_tags = video_tags
@@ -194,24 +191,33 @@ if st.session_state.search_results is not None:
     # Filter out any rows where all values are empty or NaN
     display_df = display_df.dropna(how='all')
     
-    # Add selection column
-    display_df['selected'] = [i in st.session_state.selected_videos for i in range(len(display_df))]
-    
     # Create a clickable link column
     display_df['watch'] = display_df['video_url']
     
+    # Format upload date to be more readable
+    try:
+        # Convert upload_date to datetime
+        display_df['upload_date'] = pd.to_datetime(display_df['upload_date'])
+        # Format as YYYY-MM-DD HH:MM
+        display_df['upload_date'] = display_df['upload_date'].dt.strftime('%Y-%m-%d %H:%M')
+    except Exception as e:
+        st.warning(f"Error formatting upload date: {str(e)}")
+    
+    # Combine title and description into a single column
+    display_df['title_with_desc'] = display_df.apply(
+        lambda row: f"{row['title']}\n\n{row['description']}" if pd.notna(row['description']) else row['title'], 
+        axis=1
+    )
+    
     # Ensure all required columns exist with default values
     required_columns = {
-        'title': '',
+        'title_with_desc': '',
         'watch': '',
         'duration': 'N/A',  # Default value for duration
         'upload_date': '',
         'channel_name': '',
         'view_count': 0,
-        'like_count': 0,
-        'description': '',
-        'search_term': search_term if 'search_term' in locals() else '',
-        'date_range': date_filter if 'date_filter' in locals() else ''
+        'like_count': 0
     }
     
     for col, default_value in required_columns.items():
@@ -236,15 +242,9 @@ if st.session_state.search_results is not None:
         edited_df = st.data_editor(
             display_df,
             column_config={
-                "selected": st.column_config.CheckboxColumn(
-                    "Select",
-                    help="Select videos to save",
-                    default=True,
-                    width="small"
-                ),
-                "title": st.column_config.Column(
-                    "Title",
-                    help="Video title",
+                "title_with_desc": st.column_config.Column(
+                    "Title & Description",
+                    help="Video title and description",
                     width="large"
                 ),
                 "watch": st.column_config.LinkColumn(
@@ -274,35 +274,19 @@ if st.session_state.search_results is not None:
                     "Likes",
                     width="small",
                     format="%d"
-                ),
-                "description": st.column_config.Column(
-                    "Description",
-                    width="large"
-                ),
-                "search_term": st.column_config.Column(
-                    "Search Term",
-                    width="medium"
-                ),
-                "date_range": st.column_config.Column(
-                    "Date Range",
-                    width="medium"
                 )
             },
             hide_index=True,
             use_container_width=True,
-            disabled=["title", "watch", "upload_date", "channel_name", "view_count", "like_count", "description", "search_term", "date_range", "duration"],
+            disabled=["title_with_desc", "watch", "upload_date", "channel_name", "view_count", "like_count", "duration"],
             column_order=[
-                "selected",
-                "title",
+                "title_with_desc",
                 "watch",
                 "duration",
                 "upload_date",
                 "channel_name",
                 "view_count",
-                "like_count",
-                "description",
-                "search_term",
-                "date_range"
+                "like_count"
             ],
             height=height,  # Dynamic height based on number of rows
             num_rows="fixed"  # Prevent showing empty rows
@@ -352,7 +336,6 @@ with st.sidebar:
                     
                     # Convert results to DataFrame
                     st.session_state.search_results = pd.DataFrame(results)
-                    st.session_state.selected_videos = set(range(len(results)))
                     
                     # Store video tags in session state
                     st.session_state.video_tags = video_tags

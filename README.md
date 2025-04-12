@@ -16,6 +16,7 @@ A Streamlit application that helps you search, analyze, and curate YouTube video
 - **Video Preview**: Watch videos directly in the app
 - **Metadata Display**: View detailed video information including duration, views, and likes
 - **Dynamic Results Display**: Results table adjusts height based on the number of videos found
+- **Clean UI**: Streamlined interface with title and description combined for better readability
 
 ## Setup
 
@@ -85,9 +86,9 @@ streamlit run app.py
    - Click "Search" to find videos
 
 2. **View Results**:
-   - Results show video title, duration, upload date, channel, views, likes, and description
+   - Results show video title with description, duration, upload date, channel, views, and likes
    - Click on the "Video" link to watch the video
-   - Select videos you want to save using the checkboxes
+   - Upload dates are displayed in a clean YYYY-MM-DD HH:MM format
 
 3. **Discover Related Topics**:
    - After a search, suggested topics appear based on video tags
@@ -105,6 +106,8 @@ streamlit run app.py
 - **Local Search History**: Replaced Google Sheets integration with local CSV storage for better privacy and simplicity
 - **Dynamic Search Results Header**: Shows the current search term and number of videos found
 - **Fixed Timestamp Handling**: Improved handling of ISO format timestamps in search history
+- **Streamlined UI**: Combined title and description into a single column for better readability
+- **Formatted Upload Dates**: Cleaner display of video upload dates in YYYY-MM-DD HH:MM format
 
 ## Contributing
 
