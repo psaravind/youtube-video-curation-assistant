@@ -51,9 +51,9 @@ st.markdown("""
 
 # Initialize YouTube client
 def get_youtube_client():
-    api_key = os.getenv('YOUTUBE_API_KEY')
+    api_key = os.getenv("YOUTUBE_API_KEY") or st.secrets.get("YOUTUBE_API_KEY")
     if not api_key:
-        st.error("YouTube API key not found. Please set YOUTUBE_API_KEY in your .env file.")
+        st.error("YouTube API key not found. Please set YOUTUBE_API_KEY in your .env file or Streamlit secrets.")
         return None
     return YouTubeClient()
 

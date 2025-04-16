@@ -14,9 +14,10 @@ load_dotenv()
 class YouTubeClient:
     def __init__(self):
         """Initialize YouTube API client"""
-        self.api_key = os.getenv('YOUTUBE_API_KEY')
+        # Try to get API key from environment variables or Streamlit secrets
+        self.api_key = os.getenv("YOUTUBE_API_KEY") or st.secrets.get("YOUTUBE_API_KEY")
         if not self.api_key:
-            raise ValueError("YouTube API key not found in environment variables")
+            raise ValueError("YouTube API key not found in environment variables or Streamlit secrets")
         
         self.youtube = build('youtube', 'v3', developerKey=self.api_key)
 

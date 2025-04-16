@@ -47,10 +47,18 @@ source .venv/bin/activate  # On Windows, use `.venv\Scripts\activate`
 pip install -r requirements.txt
 ```
 
-4. Create a `.env` file in the project root with your YouTube API key:
-```
-YOUTUBE_API_KEY=your_api_key_here
-```
+4. Set up your YouTube API key using one of these methods:
+
+   a. Create a `.env` file in the project root:
+   ```
+   YOUTUBE_API_KEY=your_api_key_here
+   ```
+
+   b. Or use Streamlit secrets (recommended for deployment):
+   - Create a `.streamlit/secrets.toml` file:
+   ```toml
+   YOUTUBE_API_KEY = "your_api_key_here"
+   ```
 
 ## Usage
 
