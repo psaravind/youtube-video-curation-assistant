@@ -18,11 +18,21 @@ A Streamlit-based web application that helps you search, filter, and curate YouT
 - YouTube Data API v3 key
 - Virtual environment (recommended)
 
+## Dependencies
+
+The project requires the following Python packages:
+- streamlit==1.32.0
+- google-api-python-client==2.118.0
+- python-dotenv==1.0.1
+- pandas==2.2.1
+- isodate==0.6.1
+- langdetect==1.0.9
+
 ## Installation
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/youtube-video-curation-assistant.git
+git clone https://github.com/psaravind/youtube-video-curation-assistant.git
 cd youtube-video-curation-assistant
 ```
 
@@ -64,6 +74,7 @@ streamlit run app.py
 - `search_history.py`: Local search history management
 - `requirements.txt`: Project dependencies
 - `.env`: Environment variables (not tracked in git)
+- `data/search_history.csv`: Local storage for search history
 
 ## Contributing
 
