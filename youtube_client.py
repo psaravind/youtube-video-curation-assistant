@@ -84,9 +84,18 @@ class YouTubeClient:
             cleaned_tags = [tag.lower().strip() for tag in all_tags if tag.strip()]
             tag_counts = Counter(cleaned_tags)
             
-            # Get top 50 most common tags and sort them alphabetically
-            top_tags = [tag for tag, count in tag_counts.most_common(50)]
-            return sorted(top_tags)
+            # Filter out non-English tags
+            english_tags = []
+            for tag in tag_counts.most_common(50):
+                try:
+                    if detect(tag[0]) == 'en':
+                        english_tags.append(tag[0])
+                except LangDetectException:
+                    # Skip tags that can't be detected
+                    continue
+            
+            # Sort English tags alphabetically
+            return sorted(english_tags)
             
         except Exception as e:
             print(f"Error fetching video tags: {str(e)}")
